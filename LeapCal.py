@@ -5,6 +5,8 @@ import ctypes, yaml
 import pdb
 import LeapDrawImage as di
 
+"""Use this script to grab chess boards and other preliminary work to calibrate cameras"""
+
 controller, _ = di.setCtrlr()
 
 # Arrays to store object points and image points from all the images.
@@ -158,9 +160,21 @@ def drawCube(img, corners, imgpts):
 	img = cv2.drawContours(img, [imgpts[4:]],-1,(0,0,0),3)
 	return img
 
-def grabBoard(controller,iter=1):
+def grabBoard(controller,iter=1,save=False):
 	"Plots images until chessboard is found. Then returns images and exits"
 	count=0
+	fps=30
+	if save:
+		os.chdir('/home/virtual_arena/calIMG/')
+		prefix = raw_input("Enter prefix for video file. ")
+		Rname = prefix+'-R.avi'
+		Lname = prefix+'-L.avi'
+		fourcc= cv2.VideoWriter_fourcc('M','P','E','G') 
+		Lmov = cv2.VideoWriter(Lname,
+				fourcc,fps,(640,240)) #,apiPreference=1900)
+		Rmov = cv2.VideoWriter(Rname,
+				fourcc,fps,(640,240)) #,apiPreference=1900)
+        
 	while (True):
 		frame = controller.frame()
 		images = frame.images
@@ -169,7 +183,16 @@ def grabBoard(controller,iter=1):
 		rfound = cv2.findChessboardCorners(right,(6,4),cv2.CALIB_CB_ADAPTIVE_THRESH)
 		#lfound = cv2.findChessboardCorners(left,(6,4),cv2.CALIB_CB_ADAPTIVE_THRESH)
 
+		if save:
+				mleft = cv2.cvtColor(left,cv2.COLOR_GRAY2BGR)
+				mright = cv2.cvtColor(right,cv2.COLOR_GRAY2BGR)
+				
+				Lmov.write(mleft)
+				Rmov.write(mright)
+        
 		if rfound[0]:
+			orig = os.getcwd()
+			os.chdir('/home/virtual_arena/calIMG/')
                         cv2.imwrite('LEFTchess-'+np.str(count)+'.png',left)
                         cv2.imwrite('RIGHTchess-'+np.str(count)+'.png',right)
                         Rchess=cv2.drawChessboardCorners(right,(6,4), rfound[1], rfound[0])
@@ -186,12 +209,17 @@ def grabBoard(controller,iter=1):
 				print('Board grabbed successfully.')
 
 				if count==iter:
-					return left, right
+					if save:
+						Lmov.release()
+						Rmov.release()
+					print('Board grab complete!, closing...')#return left, right
+					cv2.destroyAllWindows()
 					break
 		else:
 			cv2.imshow('left',left)
 
 		if cv2.waitKey(1) & 0XFF == ord('q'):
+			os.chdir(orig)
 			cv2.destroyAllWindows()
 			break
 

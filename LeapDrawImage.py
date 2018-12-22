@@ -1,3 +1,4 @@
+
 import Leap,  cv2, os
 import numpy as np
 import ImageCorrection as IC
@@ -38,45 +39,48 @@ def mid((x1,y1),(x2,y2)):
 
 def detect(C):
 	# initialize the shape name and approximate the contour
-        shape = "unidentified"
+        shape = "unknown"
 	peri = cv2.arcLength(C, True)
-        approx = cv2.approxPolyDP(C, 0.04 * peri, True)
+        vertices = cv2.approxPolyDP(C, 0.04 * peri, True)
 
+        #if the shape has 3 vertices, it's a triangle
+	if len(vertices) == 3:
+		shape = "circle"
         # if the shape has 4 vertices, it is either a square or
         # a rectangle
-        if len(approx) == 4:
+	if len(vertices) == 4:
                 # compute the bounding box of the contour and use the
-        	# bounding box to compute the aspect ratio
-                (x, y, w, h) = cv2.boundingRect(approx)
+       	# bounding box to compute the aspect ratio
+                (x, y, w, h) = cv2.boundingRect(vertices)
                 ar = w / float(h)
 		shape = "rectangle"
-		return shape, approx
+		return shape, vertices
 	# if the shape is a pentagon, it will have 5 vertices
-	elif len(approx) == 5:
+	elif len(vertices) == 5:
 		shape = "pentagon"
- 		return shape,approx
-	elif len(approx) ==6:
+ 		return shape,vertices
+	elif len(vertices) ==6:
 		shape = "hexagon"
-		return shape,approx
+		return shape,vertices
 	# otherwise, we assume the shape is a circle
 #	else:
 #		shape = "circle"
 	return shape
 
-def fitVect(approx,(cX,cY)):
+def fitVect(vertices,(cX,cY)):
 	#TODO: get approx to be output from detect method. Will be faster.
 	#peri = cv2.arcLength(C, True)
         #approx = cv2.approxPolyDP(C, 0.04 * peri, True) 
-	if isinstance(approx,basestring):
+	if isinstance(vertices,basestring):
 		#print ("You've passed a string! How strange!")
 		return ([],[])
 	else:
 		dists=[]
-		numBin = np.array(len(approx))-1
+		numBin = np.array(len(vertices))-1
 
 		for i in range(numBin):
-			dists.append(dist(approx[i][0],approx[i+1][0]))
-		dists.append(dist(approx[numBin][0],approx[0,0]))
+			dists.append(dist(vertices[i][0],vertices[i+1][0]))
+		dists.append(dist(vertices[numBin][0],vertices[0,0]))
 
 		smallest = list(np.where(dists==np.min(dists))[0])
 		
@@ -84,17 +88,17 @@ def fitVect(approx,(cX,cY)):
 		if len(smallest) ==1 and smallest<numBin and smallest != 5:
 			smallest = int(np.array(smallest))
 			#try:
-			pt1 = mid(approx[smallest][0],approx[smallest+1][0])
+			pt1 = mid(vertices[smallest][0],vertices[smallest+1][0])
 			#except ValueError:
 				#pt1 = mid(approx[smallest][0][0],approx[smallest+1][0][0])
 		elif len(smallest)==1 and  smallest==numBin:
 			smallest = int(np.array(smallest))
-			pt1 = mid(approx[smallest-1][0],approx[0][0])
+			pt1 = mid(vertices[smallest-1][0],vertices[0][0])
 		else:
 			smallest = int(np.array(smallest[0]))
 			#pdb.set_trace()
-			pt1 = mid(approx[smallest][0],approx[smallest+1][0])
-		if len(approx)==4 or len(approx) == 6:
+			pt1 = mid(vertices[smallest][0],vertices[smallest+1][0])
+		if len(vertices)==4 or len(vertices) == 6:
 			#shape is rectangular, assume smallest side is front
 #			if smallest == 0:
 #				pt2 = mid(approx[2][0],approx[3][0])
@@ -116,11 +120,12 @@ def fitVect(approx,(cX,cY)):
 #                                pt2 = mid(approx[smallest-3][0],approx[smallest-2][0])
 #			return pt1,pt2
 			
-		if len(approx)==5:
+		if len(vertices)==5:
 			return ([],[])
 
 def fitCont(threshImg):
         #enter thresholded image
+	pt1=[]
 	img = threshImg.copy()
 	img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 	_, cnts,_= cv2.findContours(img,cv2.RETR_EXTERNAL,
@@ -156,6 +161,29 @@ def fitCont(threshImg):
 	else:
 		return [(cX,cY),pt1]
 
+def grabScreen(controller,save=False):
+	frame = controller.frame()
+	images = frame.images
+	if images[0].is_valid and images[1].is_valid:
+		left = fmtImg(images[0])
+		right = fmtImg(images[1])
+		pdb.set_trace()
+        
+		cv2.imshow('left',left)
+		cv2.imshow('right',right)
+		cv2.waitKey(0)
+		print('Press q to continue.')   
+
+		if cv2.waitKey(1) & 0XFF == ord('q'):
+			cv2.destroyAllWindows()
+            
+	if save:
+		prefix = raw_input("Enter prefix for image files. ")
+		cv2.imwrite(prefix+'-L.png',left)        
+		cv2.imwrite(prefix+'-R.png',right) 
+		print('Images saved.')
+	return
+    
 def process(controller,draw=True, save=False,x=240.,y=640,fps=30,thresh=150):
 	print('Press the q key to interrupt')
 	check = False
